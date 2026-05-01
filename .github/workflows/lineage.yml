@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - name: Check Out
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Cleanup
       uses: rokibhasansagar/slimhub_actions@main
@@ -63,11 +63,11 @@ jobs:
       run: |
         cd ~/lineage
         source build/envsetup.sh
-        lunch lineage_${{ github.event.inputs.treble_variant }}-userdebug
-        make -j$(nproc --all) systemimage
+                lunch lineage_${{ github.event.inputs.treble_variant }}
+                make -j$(nproc --all) systemimage
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: system-${{ github.event.inputs.treble_variant }}-${{ github.event.inputs.lineage_branch }}
         path: ~/lineage/out/target/product/*/system.img
