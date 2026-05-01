@@ -1,15 +1,12 @@
-name: LineageOS GSI Build #Mr.elang🦅🎩
+name: Build LineageOS GSI #Mr.elang🦅🎩
+
 on:
   workflow_dispatch:
     inputs:
       lineage_branch:
-        description: 'LineageOS Branch'
+        description: 'LineageOS Branch: lineage-19.1, lineage-20.0'
         required: true
         default: 'lineage-19.1'
-        type: choice
-        options:
-        - lineage-19.1
-        - lineage-20.0
       treble_variant:
         description: 'Treble Variant: arm64_bgN, arm64_bvN, a64_bgN'
         required: true
@@ -28,63 +25,66 @@ jobs:
     - name: 1. Maximize Build Space
       uses: easimon/maximize-build-space@master
       with:
-        root-reserve-mb: 20480
-        swap-size-mb: 16384
+        root-reserve-mb: 512
+        temp-reserve-mb: 512
+        swap-size-mb: 10240
         remove-dotnet: 'true'
         remove-android: 'true'
         remove-haskell: 'true'
         remove-codeql: 'true'
-                
+        remove-docker-images: 'true'
+        build-mount-path: '/mnt/work'
+        
     - name: 2. Check Out Repo
       uses: actions/checkout@v4
-    
-    - name: 3. Install Repo Tool # Fix exit 127
+        
+    - name: 3. Install Repo Tool
       run: |
         mkdir -p ~/bin
         curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
         chmod a+x ~/bin/repo
         echo "$HOME/bin" >> $GITHUB_PATH
-                
+        
     - name: 4. Set Git Configs
       run: |
         git config --global user.name "${{ github.actor }}"
         git config --global user.email "${{ github.actor }}@users.noreply.github.com"
         git config --global color.ui false
-                
+        
     - name: 5. Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git git-lfsgnupg gperf imagemagick lib32readline-dev lib32z1-dev libdw-dev libelf-dev liblz4-tool libncurses6 libncurses-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3
-                
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git git-lfs gnupg gperf imagemagick lib32readline-dev lib32z1-dev libdw-dev libelf-dev liblz4-tool libncurses6 libncurses-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3
+        
     - name: 6. Initialize Repo & Sync
       run: |
-        mkdir -p ~/lineageos
-        cd ~/lineageos
+        mkdir -p /mnt/work/lineageos
+        cd /mnt/work/lineageos
         repo init -u https://github.com/LineageOS/android.git -b ${{ github.event.inputs.lineage_branch }} --git-lfs --depth=1
         mkdir -p .repo/local_manifests
         curl -L https://raw.githubusercontent.com/phhusson/treble_experimentations/master/${{ github.event.inputs.treble_manifest }} > .repo/local_manifests/treble.xml
         curl -L https://raw.githubusercontent.com/selatgibraltar-54/treble_experimentations/master/patches.sh > patches.sh
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --optimized-fetch --prune
-                
+        
     - name: 7. Apply Patches & Generate
       run: |
-        cd ~/lineageos
+        cd /mnt/work/lineageos
         bash patches.sh ${{ github.event.inputs.lineage_branch }}
         cd device/phh/treble
         bash generate.sh ${{ github.event.inputs.treble_variant }}
-                
+        
     - name: 8. Build GSI
       run: |
-        cd ~/lineageos
+        cd /mnt/work/lineageos
         source build/envsetup.sh
         lunch lineage_${{ github.event.inputs.treble_variant }}-userdebug
         make systemimage -j$(nproc --all)
-                
+        
     - name: 9. Upload GSI Artifact
       uses: actions/upload-artifact@v4
       with:
         name: LineageOS-${{ github.event.inputs.lineage_branch }}-${{ github.event.inputs.treble_variant }}-GSI
         path: |
-          ~/lineageos/out/target/product/*/system.img
-          ~/lineageos/out/target/product/*/system.img.xz
+          /mnt/work/lineageos/out/target/product/*/system.img
+          /mnt/work/lineageos/out/target/product/*/system.img.xz
         retention-days: 5
