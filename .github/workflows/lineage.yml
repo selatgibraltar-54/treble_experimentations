@@ -37,9 +37,9 @@ jobs:
                 
     - name: 2. Check Out Repo
       uses: actions/checkout@v4
-      with:
-        node-version: '24'
-                
+    
+  
+  
     - name: 3. Install Repo Tool # Fix exit 127
       run: |
         mkdir -p ~/bin
