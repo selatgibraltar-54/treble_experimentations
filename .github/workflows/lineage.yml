@@ -1,0 +1,73 @@
+name: LineageOS
+on:
+  workflow_dispatch:
+    inputs:
+      lineage_branch:
+        description: 'LineageOS branch'
+        required: true
+        default: 'lineage-19.1'
+        type: string
+      treble_variant:
+        description: 'Variant'
+        required: true
+        default: 'arm64_bgN'
+        type: choice
+        options:
+        - arm64_bgN
+        - arm64_bvN
+        - a64_bgN
+        - a64_bvN
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Check Out
+      uses: actions/checkout@v3
+
+    - name: Cleanup
+      uses: rokibhasansagar/slimhub_actions@main
+
+    - name: Prepare the environment
+      run: |
+        sudo apt update
+        sudo apt -y upgrade
+        sudo apt -y install bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev openjdk-11-jdk python3
+
+    - name: Set up swap space
+      uses: pierotofy/set-swap-space@master
+      with:
+        swap-size-gb: 12
+
+    - name: Init LineageOS Source
+      run: |
+        mkdir -p ~/lineage
+        cd ~/lineage
+        git config --global user.name "selatgibraltar-54"
+        git config --global user.email "selatgibraltar54@gmail.com"
+        repo init -u https://github.com/LineageOS/android.git -b ${{ github.event.inputs.lineage_branch }} --git-lfs --depth=1
+        repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync -j$(nproc --all)
+
+    - name: Clone device tree
+      run: |
+        cd ~/lineage
+        git clone https://github.com/phhusson/treble_experimentations.git device/phh/treble
+        rm -rf device/phh/treble/.github
+
+    - name: Apply patches
+      run: |
+        cd ~/lineage/device/phh/treble
+        bash generate.sh ${{ github.event.inputs.treble_variant }}
+
+    - name: Build
+      run: |
+        cd ~/lineage
+        source build/envsetup.sh
+        lunch lineage_${{ github.event.inputs.treble_variant }}-userdebug
+        make -j$(nproc --all) systemimage
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: system-${{ github.event.inputs.treble_variant }}-${{ github.event.inputs.lineage_branch }}
+        path: ~/lineage/out/target/product/*/system.img
