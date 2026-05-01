@@ -1,4 +1,4 @@
- name: LineageOS GSI Build
+ name: LineageOS GSI Build #Mr.elang🦅🎩
 on:
   workflow_dispatch:
     inputs:
