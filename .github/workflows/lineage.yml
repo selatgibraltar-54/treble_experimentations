@@ -1,73 +1,90 @@
-name: LineageOS
+name: LineageOS GSI Build
 on:
   workflow_dispatch:
     inputs:
       lineage_branch:
-        description: 'LineageOS branch'
+        description: 'LineageOS Branch'
         required: true
         default: 'lineage-19.1'
-        type: string
-      treble_variant:
-        description: 'Variant'
-        required: true
-        default: 'arm64_bgN'
         type: choice
         options:
-        - arm64_bgN
-        - arm64_bvN
-        - a64_bgN
-        - a64_bvN
+        - lineage-19.1
+        - lineage-20.0
+      treble_variant:
+        description: 'Treble Variant: arm64_bgN, arm64_bvN, a64_bgN'
+        required: true
+        default: 'arm64_bgN'
+      treble_manifest:
+        description: 'Manifest file'
+        required: true
+        default: 'lineage-19.1.xml'
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    
     steps:
-    - name: Check Out
-      uses: actions/checkout@v4
-
-    - name: Cleanup
-      uses: rokibhasansagar/slimhub_actions@main
-
-    - name: Prepare the environment
-      run: |
-        sudo apt update
-        sudo apt -y upgrade
-        sudo apt -y install bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev openjdk-11-jdk python3
-
-    - name: Set up swap space
-      uses: pierotofy/set-swap-space@master
+    - name: 1. Maximize Build Space
+      uses: easimon/maximize-build-space@master
       with:
-        swap-size-gb: 12
-
-    - name: Init LineageOS Source
+        root-reserve-mb: 20480
+        swap-size-mb: 16384
+        remove-dotnet: 'true'
+        remove-android: 'true'
+        remove-haskell: 'true'
+        remove-codeql: 'true'
+        
+    - name: 2. Check Out Repo
+      uses: actions/checkout@v4
+      with:
+        node-version: '24'
+        
+    - name: 3. Install Repo Tool
       run: |
-        mkdir -p ~/lineage
-        cd ~/lineage
-        git config --global user.name "selatgibraltar-54"
-        git config --global user.email "selatgibraltar54@gmail.com"
+        mkdir -p ~/bin
+        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+        chmod a+x ~/bin/repo
+        echo "$HOME/bin" >> $GITHUB_PATH
+        
+    - name: 4. Set Git Configs
+      run: |
+        git config --global user.name "${{ github.actor }}"
+        git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+        git config --global color.ui false
+        
+    - name: 5. Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git git-lfs gnupg gperf imagemagick lib32readline-dev lib32z1-dev libdw-dev libelf-dev liblz4-tool libncurses6 libncurses-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3
+        
+    - name: 6. Initialize Repo & Sync
+      run: |
+        mkdir -p ~/lineageos
+        cd ~/lineageos
         repo init -u https://github.com/LineageOS/android.git -b ${{ github.event.inputs.lineage_branch }} --git-lfs --depth=1
-        repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync -j$(nproc --all)
-
-    - name: Clone device tree
+        mkdir -p .repo/local_manifests
+        curl -L https://raw.githubusercontent.com/phhusson/treble_experimentations/master/${{ github.event.inputs.treble_manifest }} > .repo/local_manifests/treble.xml
+        curl -L https://raw.githubusercontent.com/selatgibraltar-54/treble_experimentations/master/patches.sh > patches.sh
+        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --optimized-fetch --prune
+        
+    - name: 7. Apply Patches & Generate
       run: |
-        cd ~/lineage
-        git clone https://github.com/phhusson/treble_experimentations.git device/phh/treble
-        rm -rf device/phh/treble/.github
-
-    - name: Apply patches
-      run: |
-        cd ~/lineage/device/phh/treble
+        cd ~/lineageos
+        bash patches.sh ${{ github.event.inputs.lineage_branch }}
+        cd device/phh/treble
         bash generate.sh ${{ github.event.inputs.treble_variant }}
-
-    - name: Build
+        
+    - name: 8. Build System Image
       run: |
-        cd ~/lineage
+        cd ~/lineageos
         source build/envsetup.sh
-                lunch lineage_${{ github.event.inputs.treble_variant }}
-                make -j$(nproc --all) systemimage
-
-    - name: Upload Artifact
+        lunch lineage_${{ github.event.inputs.treble_variant }}-userdebug
+        make -j$(nproc --all) systemimage
+        
+    - name: 9. Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: system-${{ github.event.inputs.treble_variant }}-${{ github.event.inputs.lineage_branch }}
-        path: ~/lineage/out/target/product/*/system.img
+        path: ~/lineageos/out/target/product/*/system.img
+        retention-days: 3
