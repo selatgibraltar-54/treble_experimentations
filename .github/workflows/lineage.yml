@@ -1,10 +1,9 @@
-name: Build LineageOS GSI V4.7 #Mr.elang🦅🎩 NO HEREDOC
+name: Build LineageOS GSI V4.8 #Mr.elang🦅🎩
 
 on:
   workflow_dispatch:
     inputs:
       lineage_branch:
-        description: 'LineageOS Branch'
         required: true
         default: 'lineage-19.1'
         type: choice
@@ -13,7 +12,6 @@ on:
         - lineage-20.0
         - lineage-21.0
       treble_variant:
-        description: 'Treble Variant'
         required: true
         default: 'arm64_bgN'
         type: choice
@@ -65,57 +63,26 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git git-lfs gnupg gperf imagemagick lib32readline-dev lib32z1-dev libdw-dev libelf-dev liblz4-tool libncurses6 libncurses-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3
         
-    - name: 6. Initialize Repo & Sync - V4.7 NO HEREDOC
+    - name: 6. Initialize Repo & Sync - V4.8 FIX TREBLE
       run: |
         set -e
         mkdir -p /mnt/work/lineageos
         cd /mnt/work/lineageos
-        echo "=== REPO INIT ==="
         repo init -u https://github.com/LineageOS/android.git -b ${{ github.event.inputs.lineage_branch }} --git-lfs --depth=1 --no-repo-verify
         mkdir -p .repo/local_manifests
-        
-        echo "=== DOWNLOAD MANIFEST V4.7 ==="
-        MANIFEST_OK=false
-        for URL in \
-          "https://raw.githubusercontent.com/phhusson/treble_experimentations/master/lineage.xml" \
-          "https://raw.githubusercontent.com/ponces/treble_build_lineage/master/lineage-19.1.xml" \
-          "https://gitlab.com/sdm660-mainline/treble_manifest/-/raw/master/lineage.xml"
-        do
-          echo "Trying $URL"
-          if curl -L -f -s --retry 5 --retry-delay 3 "$URL" -o .repo/local_manifests/treble.xml; then
-            echo "Manifest OK dari $URL"
-            MANIFEST_OK=true
-            break
-          fi
-        done
-        
-        if [ "$MANIFEST_OK" = false ]; then
-          echo "Fallback: Create manifest manual V4.7"
-          echo '<?xml version="1.0" encoding="UTF-8"?>' > .repo/local_manifests/treble.xml
-          echo '<manifest>' >> .repo/local_manifests/treble.xml
-          echo '  <remote name="github" fetch="https://github.com" />' >> .repo/local_manifests/treble.xml
-          echo '  <project name="phhusson/treble_experimentations" path="device/phh/treble" remote="github" revision="master" />' >> .repo/local_manifests/treble.xml
-          echo '  <project name="phhusson/vendor_hardware_overlay" path="vendor/hardware_overlay" remote="github" revision="master" />' >> .repo/local_manifests/treble.xml
-          echo '  <project name="TrebleDroid/vendor_interfaces" path="vendor/interfaces" remote="github" revision="android-12.1" />' >> .repo/local_manifests/treble.xml
-          echo '</manifest>' >> .repo/local_manifests/treble.xml
-        fi
-        
-        if [ ! -s .repo/local_manifests/treble.xml ]; then 
-          echo "FATAL: Manifest kosong"; exit 1
-        fi
-        echo "Manifest size: $(wc -c < .repo/local_manifests/treble.xml) bytes"
-        echo "Manifest head:" && head -5 .repo/local_manifests/treble.xml
-        
-        echo "=== CREATE DUMMY PATCHES ==="
+        echo '<?xml version="1.0" encoding="UTF-8"?>' > .repo/local_manifests/treble.xml
+        echo '<manifest>' >> .repo/local_manifests/treble.xml
+        echo '  <remote name="github" fetch="https://github.com" />' >> .repo/local_manifests/treble.xml
+        echo '  <project name="phhusson/treble_experimentations" path="device/phh/treble" remote="github" revision="master" clone-depth="1" />' >> .repo/local_manifests/treble.xml
+        echo '  <project name="phhusson/vendor_hardware_overlay" path="vendor/hardware_overlay" remote="github" revision="master" clone-depth="1" />' >> .repo/local_manifests/treble.xml
+        echo '  <project name="TrebleDroid/vendor_interfaces" path="vendor/interfaces" remote="github" revision="android-12.1" clone-depth="1" />' >> .repo/local_manifests/treble.xml
+        echo '  <project name="TrebleDroid/vendor_vndk" path="vendor/vndk" remote="github" revision="master" clone-depth="1" />' >> .repo/local_manifests/treble.xml
+        echo '</manifest>' >> .repo/local_manifests/treble.xml
         echo '#!/bin/bash' > patches.sh
         echo 'echo "No patches needed for ${{ github.event.inputs.lineage_branch }}"' >> patches.sh
         chmod +x patches.sh
-        
-        echo "=== REPO SYNC WITH RETRY ==="
         for i in 1 2 3; do
-          echo "Repo sync attempt $i"
           repo sync -c -j4 --force-sync --no-clone-bundle --no-tags --optimized-fetch --prune && break
-          echo "Repo sync attempt $i failed, retry..."
           sleep 15
         done
         
@@ -124,6 +91,11 @@ jobs:
         set -e
         cd /mnt/work/lineageos
         bash patches.sh ${{ github.event.inputs.lineage_branch }}
+        if [ ! -d "device/phh/treble" ]; then
+          echo "ERROR: device/phh/treble still missing after sync"
+          ls -la device/phh/
+          exit 1
+        fi
         cd device/phh/treble
         bash generate.sh ${{ github.event.inputs.treble_variant }}
         
