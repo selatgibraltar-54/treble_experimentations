@@ -1,4 +1,4 @@
-name: Build LineageOS GSI V4.5 #Mr.elang🦅🎩 FINAL
+name: Build LineageOS GSI V4.6 #Mr.elang🦅🎩 FINAL
 
 on:
   workflow_dispatch:
@@ -65,7 +65,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git git-lfs gnupg gperf imagemagick lib32readline-dev lib32z1-dev libdw-dev libelf-dev liblz4-tool libncurses6 libncurses-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3
         
-    - name: 6. Initialize Repo & Sync - V4.5 FINAL
+    - name: 6. Initialize Repo & Sync - V4.6 FINAL
       run: |
         set -e
         mkdir -p /mnt/work/lineageos
@@ -74,7 +74,7 @@ jobs:
         repo init -u https://github.com/LineageOS/android.git -b ${{ github.event.inputs.lineage_branch }} --git-lfs --depth=1 --no-repo-verify
         mkdir -p .repo/local_manifests
         
-        echo "=== DOWNLOAD MANIFEST V4.5 ==="
+        echo "=== DOWNLOAD MANIFEST V4.6 ==="
         MANIFEST_OK=false
         for URL in \
           "https://raw.githubusercontent.com/phhusson/treble_experimentations/master/lineage.xml" \
@@ -90,16 +90,16 @@ jobs:
         done
         
         if [ "$MANIFEST_OK" = false ]; then
-          echo "Fallback: Create manifest manual V4.5"
+          echo "Fallback: Create manifest manual V4.6"
           cat > .repo/local_manifests/treble.xml << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<manifest>
-  <remote name="github" fetch="https://github.com" />
-  <project name="phhusson/treble_experimentations" path="device/phh/treble" remote="github" revision="master" />
-  <project name="phhusson/vendor_hardware_overlay" path="vendor/hardware_overlay" remote="github" revision="master" />
-  <project name="TrebleDroid/vendor_interfaces" path="vendor/interfaces" remote="github" revision="android-12.1" />
-</manifest>
-EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <manifest>
+            <remote name="github" fetch="https://github.com" />
+            <project name="phhusson/treble_experimentations" path="device/phh/treble" remote="github" revision="master" />
+            <project name="phhusson/vendor_hardware_overlay" path="vendor/hardware_overlay" remote="github" revision="master" />
+            <project name="TrebleDroid/vendor_interfaces" path="vendor/interfaces" remote="github" revision="android-12.1" />
+          </manifest>
+          EOF
         fi
         
         if [ ! -s .repo/local_manifests/treble.xml ]; then 
@@ -134,7 +134,7 @@ EOF
         set -e
         cd /mnt/work/lineageos
         source build/envsetup.sh
-        lunch lineage_${{ github.event.inputs.treble_variant }}-userdebugu
+        lunch lineage_${{ github.event.inputs.treble_variant }}-userdebug
         make systemimage -j$(nproc --all)
         
     - name: 9. Upload GSI Artifact
