@@ -1,24 +1,33 @@
-name: Build LineageOS GSI #Mr.elang🦅🎩
+name: Build LineageOS GSI V4 #Mr.elang🦅🎩
 
 on:
   workflow_dispatch:
     inputs:
       lineage_branch:
-        description: 'LineageOS Branch: lineage-19.1, lineage-20.0, lineage-21.0'
+        description: 'LineageOS Branch'
         required: true
         default: 'lineage-19.1'
+        type: choice
+        options:
+        - lineage-19.1
+        - lineage-20.0
+        - lineage-21.0
       treble_variant:
-        description: 'Treble Variant: arm64_bgN, arm64_bvN, a64_bgN, a64_bvN'
+        description: 'Treble Variant'
         required: true
         default: 'arm64_bgN'
-      treble_manifest:
-        description: 'Manifest file: lineage-19.1.xml, lineage-20.0.xml'
-        required: true
-        default: 'lineage-19.1.xml'
+        type: choice
+        options:
+        - arm64_bgN
+        - arm64_bvN
+        - a64_bgN
+        - a64_bvN
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     timeout-minutes: 360
     
     steps:
@@ -56,35 +65,9 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git git-lfs gnupg gperf imagemagick lib32readline-dev lib32z1-dev libdw-dev libelf-dev liblz4-tool libncurses6 libncurses-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3
         
-    - name: 6. Initialize Repo & Sync
+    - name: 6. Initialize Repo & Sync - FIX EXIT 1
       run: |
+        set -e
         mkdir -p /mnt/work/lineageos
         cd /mnt/work/lineageos
-        repo init -u https://github.com/LineageOS/android.git -b ${{ github.event.inputs.lineage_branch }} --git-lfs --depth=1
-        mkdir -p .repo/local_manifests
-        curl -L https://raw.githubusercontent.com/phhusson/treble_experimentations/master/${{ github.event.inputs.treble_manifest }} > .repo/local_manifests/treble.xml
-        curl -L https://raw.githubusercontent.com/selatgibraltar-54/treble_experimentations/master/patches.sh > patches.sh
-        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --optimized-fetch --prune
-        
-    - name: 7. Apply Patches & Generate
-      run: |
-        cd /mnt/work/lineageos
-        bash patches.sh ${{ github.event.inputs.lineage_branch }}
-        cd device/phh/treble
-        bash generate.sh ${{ github.event.inputs.treble_variant }}
-        
-    - name: 8. Build GSI
-      run: |
-        cd /mnt/work/lineageos
-        source build/envsetup.sh
-        lunch lineage_${{ github.event.inputs.treble_variant }}-userdebug
-        make systemimage -j$(nproc --all)
-        
-    - name: 9. Upload GSI Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: LineageOS-${{ github.event.inputs.lineage_branch }}-${{ github.event.inputs.treble_variant }}-GSI
-        path: |
-          /mnt/work/lineageos/out/target/product/*/system.img
-          /mnt/work/lineageos/out/target/product/*/system.img.xz
-        retention-days: 5
+        echo
