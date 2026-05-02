@@ -1,4 +1,4 @@
-name: Build LineageOS GSI V4.6 #Mr.elang🦅🎩 FINAL
+name: Build LineageOS GSI V4.6 #Mr.elang🦅🎩 FINAL version
 
 on:
   workflow_dispatch:
