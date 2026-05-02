@@ -1,4 +1,4 @@
-name: Build LineageOS GSI V4 #Mr.elang🦅🎩
+name: Build LineageOS GSI V4 #Mr.elang🦅🎩 lagi mukbang🍜
 
 on:
   workflow_dispatch:
@@ -70,4 +70,59 @@ jobs:
         set -e
         mkdir -p /mnt/work/lineageos
         cd /mnt/work/lineageos
-        echo
+        echo "=== REPO INIT ==="
+        repo init -u https://github.com/LineageOS/android.git -b ${{ github.event.inputs.lineage_branch }} --git-lfs --depth=1
+        mkdir -p .repo/local_manifests
+        
+        echo "=== DOWNLOAD MANIFEST V4 ==="
+        if curl -L -f -s https://raw.githubusercontent.com/phhusson/treble_experimentations/master/lineage.xml -o .repo/local_manifests/treble.xml; then
+          echo "Manifest phhusson OK"
+        elif curl -L -f -s https://raw.githubusercontent.com/ponces/treble_build_lineage/master/lineage-19.1.xml -o .repo/local_manifests/treble.xml; then
+          echo "Manifest ponces OK"
+        else
+          echo "Fallback: Create manifest manual"
+          cat > .repo/local_manifests/treble.xml << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <manifest>
+          <project name="phhusson/treble_experimentations" path="device/phh/treble" remote="github" revision="master" />
+          <project name="phhusson/vendor_hardware_overlay" path="vendor/hardware_overlay" remote="github" revision="master" />
+        </manifest>
+        EOF
+        fi
+        
+        if [ ! -s .repo/local_manifests/treble.xml ]; then 
+          echo "FATAL: Manifest kosong"; exit 1
+        fi
+        echo "Manifest size: $(wc -c < .repo/local_manifests/treble.xml) bytes"
+        echo "Manifest head:" && head -3 .repo/local_manifests/treble.xml
+        
+        echo "=== DOWNLOAD PATCHES ==="
+        curl -L -f https://raw.githubusercontent.com/selatgibraltar-54/treble_experimentations/master/patches.sh > patches.sh || exit 1
+        
+        echo "=== REPO SYNC ==="
+        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --optimized-fetch --prune
+        
+    - name: 7. Apply Patches & Generate
+      run: |
+        set -e
+        cd /mnt/work/lineageos
+        bash patches.sh ${{ github.event.inputs.lineage_branch }}
+        cd device/phh/treble
+        bash generate.sh ${{ github.event.inputs.treble_variant }}
+        
+    - name: 8. Build GSI
+      run: |
+        set -e
+        cd /mnt/work/lineageos
+        source build/envsetup.sh
+        lunch lineage_${{ github.event.inputs.treble_variant }}-userdebug
+        make systemimage -j$(nproc --all)
+        
+    - name: 9. Upload GSI Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: LineageOS-${{ github.event.inputs.lineage_branch }}-${{ github.event.inputs.treble_variant }}-GSI
+        path: |
+          /mnt/work/lineageos/out/target/product/*/system.img
+          /mnt/work/lineageos/out/target/product/*/system.img.xz
+        retention-days: 5
