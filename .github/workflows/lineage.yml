@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       lineage_branch:
-        description: 'LineageOS Branch: lineage-19.1, lineage-20.0'
+        description: 'LineageOS Branch: lineage-19.1, lineage-20.0, lineage-21.0'
         required: true
         default: 'lineage-19.1'
       treble_variant:
-        description: 'Treble Variant: arm64_bgN, arm64_bvN, a64_bgN'
+        description: 'Treble Variant: arm64_bgN, arm64_bvN, a64_bgN, a64_bvN'
         required: true
         default: 'arm64_bgN'
       treble_manifest:
-        description: 'Manifest file'
+        description: 'Manifest file: lineage-19.1.xml, lineage-20.0.xml'
         required: true
         default: 'lineage-19.1.xml'
 
@@ -26,14 +26,14 @@ jobs:
       uses: easimon/maximize-build-space@master
       with:
         root-reserve-mb: 512
-        temp-reserve-mb: 512
-        swap-size-mb: 10240
+        swap-size-mb: 4096
         remove-dotnet: 'true'
         remove-android: 'true'
         remove-haskell: 'true'
         remove-codeql: 'true'
         remove-docker-images: 'true'
         build-mount-path: '/mnt/work'
+        overprovision-lvm: 'true'
         
     - name: 2. Check Out Repo
       uses: actions/checkout@v4
